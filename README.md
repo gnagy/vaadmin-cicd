@@ -139,3 +139,12 @@ tasks. Run them from the application's directory.
 | `VAADMIN_ALLOW_DIRTY`  | `preflight`                 | `1` to release uncommitted changes without asking                   |
 | `VAADMIN_GRADLE_TASKS` | `release`                   | The build and push tasks; default `jib`                             |
 | `DRY_RUN`              | `release`, `bump-image-tag` | `1` to skip the build and print the changes instead of writing them |
+
+## Agent skills — `skills/`
+
+Claude Code skills for the same applications, invoked by hand only (`disable-model-invocation`). Link a
+skill's directory into `~/.claude/skills/` to use it.
+
+| Skill               | What it does                                                                                                                                                                                                                                                                             |
+|---------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `jvm-memory-sizing` | Reads a running application's memory figures from Actuator, resident and native memory included when the application registers them, and proposes JVM flags sized against the deploy config's memory limit, plus a row for the project's measurement log. Changes nothing without asking |
