@@ -50,6 +50,12 @@ gradlePlugin {
             displayName = "vaadmin build info"
             description = "Adds git details and an image tag to Spring Boot's build info"
         }
+        create("messages") {
+            id = "io.github.vaadmin.messages"
+            implementationClass = "io.github.vaadmin.gradle.messages.MessagesPlugin"
+            displayName = "vaadmin messages"
+            description = "Formats message bundles"
+        }
         create("jib") {
             id = "io.github.vaadmin.jib"
             implementationClass = "io.github.vaadmin.gradle.JibPlugin"
