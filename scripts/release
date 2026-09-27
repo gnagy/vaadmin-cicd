@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+#MISE description="Build and push the image, then point the deployment files at it"
+#
+# Runs, from the app's directory: preflight, the Gradle image build and push, and bump-image-tag.
+# Committing and deploying the infra repo stay separate steps.
+#
+# Environment: everything preflight and bump-image-tag read, plus
+#   VAADMIN_GRADLE_TASKS  the Gradle tasks that build and push; default "jib"
+#   DRY_RUN               1 to skip the build and push and only show what bump-image-tag would change,
+#                         using the tag of the last build
+set -euo pipefail
+
+scripts_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+format_duration() {
+    local secs="$1"
+    if [ "$secs" -ge 60 ]; then echo "$((secs / 60))m $((secs % 60))s"; else echo "${secs}s"; fi
+}
+
+"$scripts_dir/preflight"
+
+build_secs=0
+if [ "${DRY_RUN:-0}" = 1 ]; then
+    echo "Dry run: skipping the build and push."
+else
+    gradle="gradle"
+    [ -x ./gradlew ] && gradle="./gradlew"
+    start=$(date +%s)
+    # shellcheck disable=SC2086 # the task list is meant to split
+    "$gradle" ${VAADMIN_GRADLE_TASKS:-jib}
+    build_secs=$(($(date +%s) - start))
+fi
+
+"$scripts_dir/bump-image-tag"
+
+echo ""
+echo "Build and push: $(format_duration "$build_secs")"

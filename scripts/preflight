@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#MISE description="Check the app and infra working trees before a release"
+#
+# Fails when the infra repo has incoming changes: the release rewrites files there, and merging a
+# pull into local edits afterwards is a chore. Warns about uncommitted changes in the app, whose
+# commit hash the image records.
+#
+# Environment:
+#   VAADMIN_INFRA_DIR    the infra repo the release updates (required)
+#   VAADMIN_ALLOW_DIRTY  1 to release an app with uncommitted changes without asking
+set -euo pipefail
+
+infra_dir="${VAADMIN_INFRA_DIR:?set VAADMIN_INFRA_DIR to the infra repo}"
+
+echo "Checking $infra_dir for incoming changes..."
+if ! git -C "$infra_dir" fetch --quiet; then
+    echo "Error: cannot fetch $infra_dir." >&2
+    exit 1
+fi
+if [ -n "$(git -C "$infra_dir" rev-list 'HEAD..@{u}' 2>/dev/null)" ]; then
+    echo "Error: $infra_dir has incoming changes; pull them before releasing." >&2
+    git -C "$infra_dir" log --oneline 'HEAD..@{u}' >&2
+    exit 1
+fi
+
+if [ -n "$(git status --porcelain)" ]; then
+    if [ "${VAADMIN_ALLOW_DIRTY:-0}" = 1 ]; then
+        echo "Warning: uncommitted changes; the image's git hash will not fully describe it."
+    elif [ -t 0 ]; then
+        printf "Uncommitted changes; the image's git hash will not fully describe it. Continue? [y/N] "
+        read -r reply
+        case "$reply" in
+            [Yy]*) ;;
+            *) echo "Aborted." >&2; exit 1 ;;
+        esac
+    else
+        echo "Error: uncommitted changes; set VAADMIN_ALLOW_DIRTY=1 to release anyway." >&2
+        exit 1
+    fi
+fi
+echo "Preflight passed."

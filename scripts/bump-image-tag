@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+#MISE description="Point the deployment files at a new image tag"
+#
+# Rewrites every `image: <image>:<tag>` line for the configured image, keeping indentation, quotes
+# and comments — which covers compose files and plain Kubernetes manifests. Other images in the same
+# files are left alone.
+#
+# Environment:
+#   VAADMIN_IMAGE        the image without a tag, e.g. registry.example.com/my-app (required)
+#   VAADMIN_IMAGE_FILES  space-separated files to update, relative to VAADMIN_INFRA_DIR (required)
+#   VAADMIN_INFRA_DIR    the repo holding those files (required)
+#   VAADMIN_TAG          the tag to set; by default build.docker.tag from the app's build info
+#   VAADMIN_APP_DIR      the app whose build info holds the tag; by default the current directory
+#   DRY_RUN              1 to print the changes instead of writing them
+set -euo pipefail
+
+image="${VAADMIN_IMAGE:?set VAADMIN_IMAGE to the image without a tag}"
+infra_dir="${VAADMIN_INFRA_DIR:?set VAADMIN_INFRA_DIR to the infra repo}"
+files="${VAADMIN_IMAGE_FILES:?set VAADMIN_IMAGE_FILES to the files to update}"
+
+tag="${VAADMIN_TAG:-}"
+if [ -z "$tag" ]; then
+    build_info="${VAADMIN_APP_DIR:-.}/build/resources/main/META-INF/build-info.properties"
+    tag="$(sed -n 's/^build\.docker\.tag=//p' "$build_info" 2>/dev/null || true)"
+    if [ -z "$tag" ]; then
+        echo "Error: no VAADMIN_TAG, and no build.docker.tag in $build_info." >&2
+        exit 1
+    fi
+fi
+
+# The image name as a literal inside a regular expression.
+image_pattern="$(printf '%s' "$image" | sed 's/[][\.*^$/]/\\&/g')"
+
+for file in $files; do
+    path="$infra_dir/$file"
+    if [ ! -f "$path" ]; then
+        echo "Error: $path does not exist." >&2
+        exit 1
+    fi
+    updated="$(mktemp)"
+    sed -E "s/^([[:space:]]*-?[[:space:]]*image:[[:space:]]*[\"']?${image_pattern}):[^\"'[:space:]]+/\1:${tag}/" "$path" > "$updated"
+    if cmp -s "$path" "$updated"; then
+        echo "$file: no change (already $tag, or no image: line for $image)"
+        rm -f "$updated"
+    elif [ "${DRY_RUN:-0}" = 1 ]; then
+        diff -u --label "$file" --label "$file (dry run)" "$path" "$updated" || true
+        rm -f "$updated"
+    else
+        cat "$updated" > "$path"
+        rm -f "$updated"
+        echo "$file: $image:$tag"
+    fi
+done
